@@ -8,6 +8,7 @@ import {
     workspace,
     window,
 } from 'vscode';
+import path, { resolve } from "path";
 
 
 /**
@@ -132,7 +133,7 @@ export class Config {
             }
 
             this.diagFiles.push({
-                path: Uri.joinPath(this.workspaceFolder, path),
+                path: resolveUri(this.workspaceFolder, path),
                 baseDir: baseDir,
                 type: '',
             });
@@ -150,7 +151,7 @@ export class Config {
             }
 
             this.covFiles.push({
-                path: Uri.joinPath(this.workspaceFolder, path),
+                path: resolveUri(this.workspaceFolder, path),
                 baseDir: baseDir,
                 type: '',
             });
@@ -196,4 +197,22 @@ export class Config {
         });
 
     }
+
+}
+
+/**
+ * Resolve relative to a base URI.
+ * if path is absolute, only the schema is kept
+ * @param base Base for resolving
+ * @param path absolate or relative path
+ * @returns URL resolved to absolute URI
+ */
+export function resolveUri(base: Uri | string, path: string): Uri {
+
+    if (typeof base === 'string') {
+        base = Uri.parse(base);
+    }
+
+    const resolved = resolve(base.path, path);
+    return Uri.from({ scheme: base.scheme, path: resolved });
 }

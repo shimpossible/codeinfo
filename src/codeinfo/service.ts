@@ -1,12 +1,10 @@
-import { Config, IDataFile } from "./config";
-import { setFlagsFromString } from "v8";
+import { Config, IDataFile, resolveUri} from "./config";
 import {
     Disposable,
     FileSystemWatcher,
     LogOutputChannel,
     Position,
     Range,
-    TextEditor,
     Uri,
     window,
     workspace,
@@ -15,13 +13,7 @@ import {
     languages,
     DiagnosticRelatedInformation,
     Location,
-    RelativePattern,
 } from "vscode";
-
-import fs from 'fs';
-import { rejects } from "assert";
-import path, { resolve } from "path";
-import { json } from "stream/consumers";
 
 export class BranchCoverage {
     executed: number;
@@ -112,7 +104,7 @@ export class SortedFileCoverage {
      */
     constructor(coverage: FileCoverage, baseDir: Uri) {
 
-        this.uri = Uri.joinPath(baseDir, coverage.uri);
+        this.uri = resolveUri(baseDir, coverage.uri);
         this.full = [];
         this.partial = [];
         this.none = [];
@@ -288,12 +280,12 @@ export class Service {
 
         this.diagnostics.clear();
 
-        const baseDir = workspace.workspaceFolders?.at(0)?.uri.fsPath || '';
+        const baseDir = file.baseDir;
 
         for (let [filePath, findings] of map.entries()) {
             try {
                 this.outputChannel.trace(`Loaded: ${filePath}`);
-                const fileUri = Uri.file(path.join(baseDir, filePath));
+                const fileUri = resolveUri(baseDir, filePath);
 
                 if (Array.isArray(findings)) {
                     const problems = findings.map((value) => {
@@ -318,7 +310,7 @@ export class Service {
         ["hint", DiagnosticSeverity.Hint],
     ]);
 
-    private createDiagnostic(baseDir: string, p: IDiagnostic): Diagnostic {
+    private createDiagnostic(baseDir: Uri, p: IDiagnostic): Diagnostic {
         const range = new Range(
             new Position(p.line - 1, p.offset - 1),
             new Position(p.line - 1, p.offset - 1),
@@ -330,14 +322,14 @@ export class Service {
         return diag;
     }
 
-    private createRelatedInfo(baseDir: string, related: IRelatedDiagnostc[] | undefined): DiagnosticRelatedInformation[] | undefined {
+    private createRelatedInfo(baseDir: Uri, related: IRelatedDiagnostc[] | undefined): DiagnosticRelatedInformation[] | undefined {
 
         return related?.map((value) => {
 
-            const fullPath = path.join(baseDir, value.path);
+            const fullPath = resolveUri(baseDir, value.path);
             return new DiagnosticRelatedInformation(
                 new Location(
-                    Uri.file(fullPath),
+                    fullPath,
                     new Position(value.line - 1, value.offset - 1),
                 ),
                 value.message);
@@ -411,7 +403,7 @@ export class Service {
             this.outputChannel.trace(`[${Date.now()}] finished reading   ${file.path}`);
 
             data.forEach((entry) => {
-                const uri = Uri.joinPath(file.baseDir, entry.uri);
+                const uri = resolveUri(file.baseDir, entry.uri);
                 //const uri = Uri.file(`${entry.uri}`);
                 const sc = new SortedFileCoverage(entry, file.baseDir);
                 this.coverageData.set(uri.toString(), sc);
