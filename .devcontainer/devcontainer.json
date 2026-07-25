@@ -1,0 +1,9 @@
+{
+  "image": "mcr.microsoft.com/devcontainers/typescript-node",
+
+  "customizations": {
+    "vscode": {
+    }
+  },
+  "forwardPorts": [3000]
+}
