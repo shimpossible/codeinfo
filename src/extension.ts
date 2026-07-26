@@ -3,6 +3,7 @@
 import { argon2 } from 'crypto';
 import * as vscode from 'vscode';
 import * as coverage from './codeinfo/service';
+
 import {
 	Config
 } from './codeinfo/config';
@@ -24,12 +25,17 @@ export function activate(context: vscode.ExtensionContext) {
 		service.processDiagnosicData.bind(service),
 	);
 
+	const disableScope = vscode.commands.registerCommand(
+		"codeinfo.coverage.disableScope",
+		service.disableScope.bind(service),
+	);
+
 	context.subscriptions.push(displayCoverage);
 	context.subscriptions.push(displayDiagnostics);
+	context.subscriptions.push(disableScope);
 	context.subscriptions.push(outputChannel);
 	context.subscriptions.push(service);
 	context.subscriptions.push(config);
-
 	// start watching file system
 	service.watchWorkspace();
 }

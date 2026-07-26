@@ -1,0 +1,38 @@
+[
+    {
+        "uri": "coverage.json",
+        "coverage": [
+            {
+                "line": 1,
+                "executed": 20
+            },
+            {
+                "line": 2,
+                "executed": 20,
+                "branches": [1,0,2]
+            },
+            {
+                "line": 3,
+                "executed": 0
+            }
+        ]
+    },
+    {
+        "uri": "coverage.json",
+        "coverage": [
+            {
+                "line": 1,
+                "executed": 20
+            },
+            {
+                "line": 4,
+                "executed": 20,
+                "branches": [1,3,2]
+            },
+            {
+                "line": 3,
+                "executed": 0
+            }
+        ]
+    }
+]
