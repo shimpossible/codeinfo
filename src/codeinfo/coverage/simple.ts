@@ -52,7 +52,7 @@ export class SimpleCoverageParser implements ICoverageParser {
                     });
                     return new StatementCoverage({
                         executed: stmt.executed,
-                        location: stmt.line,
+                        location: stmt.line -1, // zero based
                         branches: b,
                         scope: stmt.scope
                     });
