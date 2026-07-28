@@ -1,12 +1,10 @@
-
 import {
+    sortCoverage,
     ICoverageParser,
     StatementCoverage,
     FileCoverage,
     BranchCoverage,
-    SortedFileCoverage,
-    sortCoverage,
-} from '../service';
+} from './coverage';
 
 import { IDataFile } from '../config';
 import {
@@ -52,7 +50,7 @@ export class SimpleCoverageParser implements ICoverageParser {
                     });
                     return new StatementCoverage({
                         executed: stmt.executed,
-                        location: stmt.line -1, // zero based
+                        location: stmt.line - 1, // zero based
                         branches: b,
                         scope: stmt.scope
                     });

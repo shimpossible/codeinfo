@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
-import { FileCoverage, Scope, Service } from '../service';
+import { Scope, Service } from '../service';
+import * as cvg from './coverage';
 
 export class CodeLensProvider implements vscode.CodeLensProvider {
 
     private codeLenses: vscode.CodeLens[] = [];
     private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
     public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
-    private coverageData: Map<string, FileCoverage[]> = new Map<string, FileCoverage[]>();
+    private coverageData: Map<string, cvg.FileCoverage[]> = new Map<string, cvg.FileCoverage[]>();
     private service: Service;
     private output: vscode.LogOutputChannel;
 
@@ -79,7 +80,7 @@ export class CodeLensProvider implements vscode.CodeLensProvider {
         return codeLens;
     }
 
-    public async updateCoverageInfo(data: Map<string, FileCoverage[]>) {
+    public async updateCoverageInfo(data: Map<string, cvg.FileCoverage[]>) {
         this.coverageData = data;
     }
 
