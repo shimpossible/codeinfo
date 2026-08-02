@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
 import { Scope, Service } from '../service';
 import * as cvg from './coverage';
+import { setUncaughtExceptionCaptureCallback } from 'process';
 
 export class CodeLensProvider implements vscode.CodeLensProvider {
 
     private codeLenses: vscode.CodeLens[] = [];
     private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
     public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
-    private coverageData: Map<string, cvg.FileCoverage[]> = new Map<string, cvg.FileCoverage[]>();
-    private service: Service;
+    private coverage: cvg.Coverage;
     private output: vscode.LogOutputChannel;
 
-    constructor(service: Service, output: vscode.LogOutputChannel) {
-        this.service = service;
+    constructor(coverage: cvg.Coverage, output: vscode.LogOutputChannel) {
+        this.coverage = coverage;
         this.output = output;
     }
 
@@ -26,47 +26,26 @@ export class CodeLensProvider implements vscode.CodeLensProvider {
         this.codeLenses = [];
 
         const uri = document.uri;
-        const fileCovAll = this.coverageData.get(uri.toString());
-        if (!fileCovAll) {
-            return [];
-        }
+        const scopes = this.coverage.getScopes(uri);
+        const codelens: vscode.CodeLens[] = [];
 
-        const scopes = new Map<string, number>(); // earlist line number for a given scope
-        this.output.info("Updating code lens for " + uri.toString());
-        // find all scopes
-        fileCovAll.forEach((fc) => {
-            fc.coverage.forEach((curr) => {
-                if (curr.scope) {
+        const lines =new Set<number>();
 
-                    const line = scopes.get(curr.scope) || curr.location;
-                    scopes.set(curr.scope, Math.min(line, curr.location));
-                }
-            });
+        scopes.forEach( (scope) => {
+
+            if (lines.has(scope.line)) {return;}
+
+            lines.add(scope.line);
+            const range = document.lineAt(scope.line).range;
+            codelens.push( new vscode.CodeLens(range, {
+                title: 'CodeInfo: Toggle Scope',
+                command: "codeinfo.coverage.disableScope",
+                arguments: [uri, scope.name, scope.line]
+            }));
         });
 
-        scopes.forEach((line, scopeName) => {
-
-            const range = document.lineAt(line).range;
-
-            const scope = new Scope({
-                name: scopeName,
-                line: line,
-                uri: uri,
-            });
-            const title = this.service.isScopeEnabled(scope)
-                ? `Disable ${scopeName}`
-                : `Enable ${scopeName}`;
-
-            this.codeLenses.push(
-                new vscode.CodeLens(range, {
-                    title: title,
-                    command: "codeinfo.coverage.disableScope",
-                    arguments: [uri, scopeName, line]
-                })
-            );
-        });
-
-        return this.codeLenses;
+        return codelens;
+        
     };
 
     /**
@@ -80,8 +59,7 @@ export class CodeLensProvider implements vscode.CodeLensProvider {
         return codeLens;
     }
 
-    public async updateCoverageInfo(data: Map<string, cvg.FileCoverage[]>) {
-        this.coverageData = data;
+    public async updateCoverageInfo() {
     }
 
 };

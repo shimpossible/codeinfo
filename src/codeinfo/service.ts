@@ -9,6 +9,9 @@ import {
     window,
     workspace,
     languages,
+    TreeItemCheckboxState,
+    QuickPickItem,
+    QuickPickOptions,
 } from "vscode";
 
 import * as cvg from './coverage/coverage';
@@ -108,10 +111,9 @@ function mergeCoverageData(
         const existing = coverage.get(key);
         if (existing) {
 
-
             // merge the two branch exec counts
             const mergedBranches = existing.branches?.map((val, idx) => {
-                const exec_count = cov.branches?.[idx].executed || 0;
+                const exec_count = cov.branches?.[idx]?.executed || 0;
                 return new cvg.BranchCoverage(val.executed + exec_count);
             });
 
@@ -154,8 +156,6 @@ function mergeCoverageData(
                     }
                 }
             }
-
-            log.info("MErged " + cov.scope + " with " + existing.scope);
             coverage.set(key, merged);
         } else {
             coverage.set(key, cov); // no existing, use the item
@@ -175,9 +175,6 @@ export class Service {
     private coverageWatcher: FileSystemWatcher | undefined;
     private editorWatcher: Disposable | undefined;
 
-    private coverageData: Map<string, cvg.SortedFileCoverage>;
-    private rawCoverageData = new Map<string, cvg.FileCoverage[]>();
-
 
     private diagnostics = languages.createDiagnosticCollection("coverage");
 
@@ -187,18 +184,20 @@ export class Service {
 
     private lens: codelens.CodeLensProvider;
 
-    private disposables: Disposable[] = [];
+    private coverage: cvg.Coverage;
 
-    private disabledScopes = new Set<string>();
+    private disposables: Disposable[] = [];
 
     constructor(config: Config,
         outputChannel: LogOutputChannel,
     ) {
         this.config = config;
         this.outputChannel = outputChannel;
-        this.lens = new codelens.CodeLensProvider(this, this.outputChannel);
-        this.coverageData = new Map<string, cvg.SortedFileCoverage>();
+        this.coverage = new cvg.Coverage(outputChannel, config);
+        this.lens = new codelens.CodeLensProvider(this.coverage, this.outputChannel);
         this.simple = new SimpleDiagnosticParser(outputChannel);
+
+
         // type mappings for diagnostic files
         this.diagParsers.set("simple", this.simple);
 
@@ -209,21 +208,14 @@ export class Service {
     }
 
     public dispose() {
+        this.coverage.dispose();
         this.outputChannel.debug("Disposing Servicatie");
         this.coverageWatcher?.dispose();
-
+        this.editorWatcher?.dispose();
         this.disposables.forEach((x) => { x.dispose; });
 
     }
 
-    /**
-     * Is the scope not in the disabled list?
-     * @param scope  Uri and scope name
-     * @returns TRUE if is included in coverage
-     */
-    public isScopeEnabled(scope: Scope) {
-        return this.disabledScopes.has(scope.toString()) === false;
-    }
 
     /// Watch workspace(s) for new data files?
     public async watchWorkspace() {
@@ -237,23 +229,8 @@ export class Service {
         this.processCoverageData();
         this.processDiagnosicData();
 
-        // any time the windows change, we need to redraw the cached data
-        this.editorWatcher = window.onDidChangeActiveTextEditor(
-            this.handleEditorEvents.bind(this),
-        );
     }
 
-    /**
-     * Called when active editor changes
-     * This allows us to update the decorations
-     */
-    private handleEditorEvents() {
-        try {
-            this.renderCoverageData();
-        } finally {
-            //            this.statusBar.setLoading(false);
-        }
-    }
 
     /**
      * process coverage information and update rednered
@@ -262,42 +239,43 @@ export class Service {
     public async processCoverageData() {
 
         this.outputChannel.trace(`UPDATE COVERAGE DATA`);
-        await this.updateCoverageData();
+        this.coverage.updateCoverageData();
 
-        this.outputChannel.trace(`RENDER COVERAGE DATA`);
-        this.renderCoverageData();
+        this.lens.updateCoverageInfo();
 
-        this.outputChannel.trace(`ALL DONE COVERAGE DATA`);
     }
 
     public async disableScope(uri: Uri, name: string, line: number) {
 
-        const scope = new Scope({
-            name: name,
-            line: line,
-            uri: uri
+        // scopes at line
+        const scopes = this.coverage.getScopes(uri);
+
+        const items : {'label':string, 'picked':boolean, 'scope':Scope}[] = [];
+        await Promise.all(scopes.map( async (x) => {
+
+            // not a scope on this line
+            if (x.line !== line) { return; }
+
+            items.push({
+                'label': x.name,
+                'picked': this.coverage.isScopeEnabled(x),
+                'scope': x,
+            });
+        }));
+
+        const results = await window.showQuickPick(items, { canPickMany: true });
+
+        // map back into items, to uncheck any not selected
+        items.forEach((x) => {
+            const has = results?.find((y) => { return x.scope === y.scope; });
+            if (!has) {
+                x.picked = false;
+            } else {
+                x.picked = true;
+            }
         });
 
-        this.outputChannel.info(`Toggle ${scope}`);
-
-        const key = scope.toString();
-        if (this.disabledScopes.has(key)) {
-            this.disabledScopes.delete(key);
-        } else {
-            this.disabledScopes.add(key);
-        }
-
-        try {
-            // restore because filter has changed
-            await this.sortCoverageFiles();
-
-            // update render
-            await this.renderCoverageData();
-        } catch (e) {
-            this.outputChannel.error(e as Error);
-        }
-
-        this.lens.notifyUpdated();
+        await this.coverage.toggleScopes(items);
     }
 
     public async processDiagnosicData() {
@@ -330,156 +308,5 @@ export class Service {
         this.diagnostics.set(map);
 
         this.outputChannel.trace(`Parse ${file.path} Finished`);
-    }
-
-
-    /**
-     * Render coverage information for active editors with
-     * matching coverage files
-     */
-    private async renderCoverageData() {
-
-        this.outputChannel.debug("Rendering coverage data");
-        // only display for window.visibleTextEditors;
-        window.visibleTextEditors.map((editor) => {
-
-            this.outputChannel.trace(`rendering coverage for ` + editor.document.uri);
-            const fc = this.coverageData.get(editor.document.uri.toString());
-
-            // skip as there is no coverage data
-            if (!fc) { return; }
-
-            this.outputChannel.info('render ' + editor.document.uri.toString());
-            this.outputChannel.info("FULL " + fc.full.toString());
-            this.outputChannel.info("PART " + fc.partial.toString());
-            this.outputChannel.info("NONE " + fc.none.toString());
-            editor.setDecorations(
-                this.config.fullDecoration,
-                fc.full.map((lineno) => {
-                    return {
-                        range: editor.document.lineAt(lineno).range
-                    };
-                })
-            );
-
-            editor.setDecorations(
-                this.config.partialDecoration,
-                fc.partial.map((lineno) => {
-                    return { range: editor.document.lineAt(lineno).range };
-                })
-            );
-
-            editor.setDecorations(
-                this.config.noneDecoration,
-                fc.none.map((lineno) => {
-                    return { range: editor.document.lineAt(lineno).range };
-                })
-            );
-
-        });
-    }
-
-    /**
-     * parse coverage information and update cache
-     */
-    private async updateCoverageData() {
-
-        this.outputChannel.info("Updating Coverage data");
-
-        // start fresh
-        this.coverageData.clear();
-        this.rawCoverageData.clear();
-
-        // build FileCoverage lists for every Covered file
-        for (const file of this.config.covFiles) {
-            this.outputChannel.debug(`Reading coverage data from : ${file.path}`);
-            await this.processCoverageFile(file);
-        }
-
-        this.lens.updateCoverageInfo(this.rawCoverageData);
-        // sort/merge the FileCoverage lists
-        await this.sortCoverageFiles();
-
-        this.outputChannel.info(`Finished Coverage data`);
-    }
-
-    private async sortCoverageFiles() {
-
-        await this.rawCoverageData.forEach((_, key) => {
-            this.sortCoverageFile(key);
-        });
-    }
-
-    /**
-     * Sort data for a single file
-     * @param path 
-     */
-    private async sortCoverageFile(path: string) {
-
-        const uri = Uri.parse(path);
-        // merge coverage by file
-        let merged: cvg.FileCoverage | undefined = undefined;
-        const coverage = this.rawCoverageData.get(path);
-
-        this.outputChannel.info("Sorting " + path);
-
-        await coverage?.forEach((cov) => {
-            merged = mergeCoverageData(merged, cov, (cov) => {
-
-                const scope = new Scope({
-                    name: cov.scope || '',
-                    line: cov.location,
-                    uri: uri,
-                });
-                return this.isScopeEnabled(scope);
-            },
-                this.outputChannel);
-        });
-
-        if (merged !== undefined) {
-            (merged as cvg.FileCoverage).coverage.forEach((x) => {
-                this.outputChannel.debug(`merged: ${x.location} ${x.kind}`);
-            });
-
-            // sort by full,partial,none 
-            const sc = cvg.sortCoverage(merged);
-            this.coverageData.set(path, sc);
-        }
-    }
-
-    private async processCoverageFile(file: IDataFile) {
-        try {
-            const data = await this.simpleCov.parse(file);
-
-            //const data = await this.readJsonFile(file.path) as FileCoverage[];
-            this.outputChannel.trace(`[${Date.now()}] finished reading   ${file.path}`);
-
-            data.forEach((entry: cvg.FileCoverage) => {
-                if (typeof entry.uri === 'string') {
-                    entry.uri = resolveUri(file.baseDir, entry.uri as string);
-                }
-
-                const existing = this.rawCoverageData.get(entry.uri.toString()) || [];
-                existing.push(entry);
-                // first one needs to be place in map
-                if (existing.length === 1) {
-                    this.rawCoverageData.set(entry.uri.toString(), existing);
-                }
-
-                this.outputChannel.trace(`Created coverage data for : ${entry.uri}`);
-            });
-
-            this.outputChannel.debug(`finished parsing ${file.path}`);
-        } catch (e) {
-            this.outputChannel.error(`Error while reading ${file.path}`, e as Error);
-        }
-
-    }
-
-    private async readJsonFile(filePath: Uri) {
-
-        const rawData = await workspace.fs.readFile(filePath);
-        const str = Buffer.from(rawData).toString('utf8');
-        return JSON.parse(str);
     }
 }
