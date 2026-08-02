@@ -3,6 +3,7 @@ import {
     ExtensionContext,
     LogOutputChannel,
     Uri,
+    EventEmitter,Event,
     Disposable,
     // singletons
     workspace,
@@ -56,12 +57,21 @@ export class Config {
     // coverage files
     public covFiles: IDataFile[] = [];
 
+    /**
+     * Display Coverage in editor?
+     */
+    public coverageEnabled: boolean;
+
+    private _onDidChangeConfig: EventEmitter<void> = new EventEmitter<void>();
+    public readonly onDidChangeConfig: Event<void> = this._onDidChangeConfig.event;
+
     private listener: Disposable;
     constructor(context: ExtensionContext,
         outputChannel: LogOutputChannel
     ) {
         this.context = context;
         this.outputChannel = outputChannel;
+        this.coverageEnabled = true;
         this.setup();
 
         // run setup when config changes
@@ -157,15 +167,31 @@ export class Config {
             });
         });
 
-        const coverageFullDark = rootConfig.get("coverage.fullDark") as string || "rgba(0, 255, 0, 0.4)";
-        const coverageFullLight = rootConfig.get("coverage.fullLight") as string || "rgba(0, 255, 0, 0.4)";
+        this.coverageEnabled = rootConfig.get("coverage.enable", true);
 
-        const coveragePartDark = rootConfig.get("coverage.partialDark") as string || "rgba(163, 149, 0, 0.4)";
-        const coveragePartLight = rootConfig.get("coverage.partialLight") as string || "rgba(255, 235, 0, 0.2)";
+        const coverageFullDark = rootConfig.get("coverage.fullDark", "rgba(0, 255, 0, 0.4)");
+        const coverageFullLight = rootConfig.get("coverage.fullLight", "rgba(0, 255, 0, 0.4)");
 
-        const coverageNoneDark = rootConfig.get("coverage.noneDark") as string || "rgba(163, 0, 0, 0.4)";
-        const coverageNoneLight = rootConfig.get("coverage.noneight") as string || "rgba(255, 0, 0, 0.2)";
+        const coveragePartDark = rootConfig.get("coverage.partialDark", "rgba(163, 149, 0, 0.4)");
+        const coveragePartLight = rootConfig.get("coverage.partialLight", "rgba(255, 235, 0, 0.2)");
 
+        const coverageNoneDark = rootConfig.get("coverage.noneDark", "rgba(163, 0, 0, 0.4)");
+        const coverageNoneLight = rootConfig.get("coverage.noneight", "rgba(255, 0, 0, 0.2)");
+
+        // dispose existing to remove any decoration 
+        // since deorations are tied to the instance we need
+        // to remove these before creating NEW instances
+        if (this.fullDecoration) {
+            this.fullDecoration.dispose();
+        }
+        if (this.partialDecoration) {
+            this.partialDecoration.dispose();
+        }
+        if (this.noneDecoration) {
+            this.noneDecoration.dispose();
+        }
+
+        // how create new ones
         this.fullDecoration = window.createTextEditorDecorationType({
             dark: {
                 backgroundColor: coverageFullDark
@@ -196,6 +222,8 @@ export class Config {
             isWholeLine: true,
         });
 
+        // notifyconfig changed 
+        this._onDidChangeConfig.fire();
     }
 
 }

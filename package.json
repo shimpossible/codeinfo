@@ -33,6 +33,11 @@
       {
         "title": "CodeInfo",
         "properties": {
+          "codeinfo.coverage.enable":{
+             "type":"boolean",
+             "default": "true",
+             "description": "Show Code coverage in editor"
+          },
           "codeinfo.coverage.fullDark": {
             "type": "string",
             "scope": "resource",

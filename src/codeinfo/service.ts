@@ -250,8 +250,8 @@ export class Service {
         // scopes at line
         const scopes = this.coverage.getScopes(uri);
 
-        const items : {'label':string, 'picked':boolean, 'scope':Scope}[] = [];
-        await Promise.all(scopes.map( async (x) => {
+        const items: { 'label': string, 'picked': boolean, 'scope': Scope }[] = [];
+        await Promise.all(scopes.map(async (x) => {
 
             // not a scope on this line
             if (x.line !== line) { return; }
@@ -263,19 +263,25 @@ export class Service {
             });
         }));
 
-        const results = await window.showQuickPick(items, { canPickMany: true });
-
-        // map back into items, to uncheck any not selected
-        items.forEach((x) => {
-            const has = results?.find((y) => { return x.scope === y.scope; });
-            if (!has) {
-                x.picked = false;
-            } else {
-                x.picked = true;
-            }
+        const results = await window.showQuickPick(items, {
+            canPickMany: true
         });
 
-        await this.coverage.toggleScopes(items);
+        // undefined means they clicked off.
+        // empty [] means they unselected everything
+        if (results) {
+            // map back into items, to uncheck any not selected
+            items.forEach((x) => {
+                const has = results?.find((y) => { return x.scope === y.scope; });
+                if (!has) {
+                    x.picked = false;
+                } else {
+                    x.picked = true;
+                }
+            });
+
+            await this.coverage.toggleScopes(items);
+        }
     }
 
     public async processDiagnosicData() {

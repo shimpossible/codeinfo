@@ -303,6 +303,7 @@ export class Coverage {
 
     private logger: vscode.LogOutputChannel;
     private editorWatcher: vscode.Disposable;
+    private configWatcher: vscode.Disposable;
     private config: Config;
     private simpleCov = new SimpleCoverageParser();
 
@@ -321,10 +322,18 @@ export class Coverage {
         this.editorWatcher = vscode.window.onDidChangeActiveTextEditor(
             this.handleEditorEvents.bind(this),
         );
+
+        this.configWatcher = this.config.onDidChangeConfig( () =>{
+            // read all coverage data again, as something may have
+            // changed 
+            this.updateCoverageData();
+        });
+
     }
 
     public dispose() {
         this.editorWatcher.dispose();
+        this.configWatcher.dispose();
     }
 
     /**
@@ -439,7 +448,7 @@ export class Coverage {
         // build scopes
         const scopes: Scope[] = [];
         await Promise.all([...scopeAtLine].map(([name, line]) => {
-            scopes.push( new Scope({
+            scopes.push(new Scope({
                 name: name,
                 line: line,
                 uri: uri,
@@ -499,13 +508,20 @@ export class Coverage {
      */
     private async renderCoverage(editor: vscode.TextEditor) {
 
-        const fc = this.getSortedCoverage(editor.document.uri);
+        const en = this.config.coverageEnabled;
 
+        const fc = en
+            ? this.getSortedCoverage(editor.document.uri)
+            : undefined;
+
+        this.logger.info(`Rendering coverage ${editor.document.uri} ${en} ${fc}`);
         if (!fc) {
             // no coverage data, unset any that was set before
             editor.setDecorations(this.config.fullDecoration, []);
             editor.setDecorations(this.config.partialDecoration, []);
             editor.setDecorations(this.config.noneDecoration, []);
+
+            this.logger.info(`Rendering coverage ${editor.document.uri} ${en} ${fc}`);
         } else {
             editor.setDecorations(this.config.fullDecoration,
                 fc.full.map((lineno) => {

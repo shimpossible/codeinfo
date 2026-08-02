@@ -5,7 +5,6 @@ import { setUncaughtExceptionCaptureCallback } from 'process';
 
 export class CodeLensProvider implements vscode.CodeLensProvider {
 
-    private codeLenses: vscode.CodeLens[] = [];
     private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
     public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
     private coverage: cvg.Coverage;
@@ -23,19 +22,29 @@ export class CodeLensProvider implements vscode.CodeLensProvider {
     };
 
     public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens[]> {
-        this.codeLenses = [];
 
         const uri = document.uri;
         const scopes = this.coverage.getScopes(uri);
         const codelens: vscode.CodeLens[] = [];
 
-        const lines =new Set<number>();
+        // lineno vs scopes at lineno
+        const lines =new Map<number, number>();
 
         scopes.forEach( (scope) => {
 
-            if (lines.has(scope.line)) {return;}
+            const count = lines.get(scope.line) || 0;
+            lines.set(scope.line, count+1);
+        });
 
-            lines.add(scope.line);
+        
+        scopes.forEach( (scope) => {
+
+            // ignore single scopes
+            if (lines.get(scope.line) === 1) { return; }
+
+            // prevent a 2nd CodeLens at this line by setting it to 1
+            lines.set(scope.line,1);
+
             const range = document.lineAt(scope.line).range;
             codelens.push( new vscode.CodeLens(range, {
                 title: 'CodeInfo: Toggle Scope',
