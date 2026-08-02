@@ -93,6 +93,7 @@
             },
             "default": [
               {
+                "baseDir": "${workspaceFolder}",
                 "path": "diag.json"
               }
             ]
@@ -116,6 +117,7 @@
             },
             "default": [
               {
+                "baseDir": "${workspaceFolder}",
                 "path": "coverage.json"
               }
             ]
