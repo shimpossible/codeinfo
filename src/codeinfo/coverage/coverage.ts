@@ -514,14 +514,25 @@ export class Coverage {
             ? this.getSortedCoverage(editor.document.uri)
             : undefined;
 
+        const any = editor as any;
+
+        // prevent overlay of coverage on Diff windows, as it will only
+        // get messy and confusing
+
+        // This is done by finding the matching 'tab' and seeing if it
+        // is a TabInputTextDiff vs a TabInputText
+        const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+        const isDiff = tab?.input instanceof vscode.TabInputTextDiff;
+
+
         this.logger.info(`Rendering coverage ${editor.document.uri} ${en} ${fc}`);
-        if (!fc) {
+
+        // no file coverage.. or was a diff window
+        if (!fc || isDiff) {
             // no coverage data, unset any that was set before
             editor.setDecorations(this.config.fullDecoration, []);
             editor.setDecorations(this.config.partialDecoration, []);
             editor.setDecorations(this.config.noneDecoration, []);
-
-            this.logger.info(`Rendering coverage ${editor.document.uri} ${en} ${fc}`);
         } else {
             editor.setDecorations(this.config.fullDecoration,
                 fc.full.map((lineno) => {
