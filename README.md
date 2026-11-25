@@ -73,6 +73,12 @@ Coverage may not updated correctly when splitting editor windows. Select editor 
 ## Release Notes
 
 This is the first release and includes Code Coverage and Diagnostic reports
+
+### 0.0.2
+Update colors to be less harsh
+add codeinfo.coverage.updateTask to automate updating Coverage data
+Branch coverage now calculated based on each branch instead of execution
+
 ### 0.0.1
 
 Initial release

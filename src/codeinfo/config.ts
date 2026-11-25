@@ -8,6 +8,7 @@ import {
     // singletons
     workspace,
     window,
+    Task,
 } from 'vscode';
 import path, { resolve } from "path";
 
@@ -37,8 +38,11 @@ interface IDataFileRaw {
  */
 export class Config {
 
+
     private context: ExtensionContext;
     private outputChannel: LogOutputChannel;
+
+    public updateCoverageTaskName : string = '';
 
     public fullDecoration = window.createTextEditorDecorationType({
         backgroundColor: 'blue',
@@ -167,16 +171,18 @@ export class Config {
             });
         });
 
+        this.updateCoverageTaskName = rootConfig.get("coverage.updateTask","Update Code Coverage");
+
         this.coverageEnabled = rootConfig.get("coverage.enable", true);
 
-        const coverageFullDark = rootConfig.get("coverage.fullDark", "rgba(0, 255, 0, 0.4)");
-        const coverageFullLight = rootConfig.get("coverage.fullLight", "rgba(0, 255, 0, 0.4)");
+        const coverageFullDark = rootConfig.get("coverage.fullDark", "rgba(46,160,67,0.15)");
+        const coverageFullLight = rootConfig.get("coverage.fullLight", "rgba(46,160,67,0.15)");
 
-        const coveragePartDark = rootConfig.get("coverage.partialDark", "rgba(163, 149, 0, 0.4)");
-        const coveragePartLight = rootConfig.get("coverage.partialLight", "rgba(255, 235, 0, 0.2)");
+        const coveragePartDark = rootConfig.get("coverage.partialDark", "rgba(248, 200, 0, 0.20)");
+        const coveragePartLight = rootConfig.get("coverage.partialLight", "rgba(248, 200, 0, 0.20)");
 
-        const coverageNoneDark = rootConfig.get("coverage.noneDark", "rgba(163, 0, 0, 0.4)");
-        const coverageNoneLight = rootConfig.get("coverage.noneight", "rgba(255, 0, 0, 0.2)");
+        const coverageNoneDark = rootConfig.get("coverage.noneDark", "rgba(248, 81,73,0.15)");
+        const coverageNoneLight = rootConfig.get("coverage.noneight", "rgba(248, 81,73,0.15)");
 
         // dispose existing to remove any decoration 
         // since deorations are tied to the instance we need

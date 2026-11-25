@@ -12,6 +12,8 @@ import {
     TreeItemCheckboxState,
     QuickPickItem,
     QuickPickOptions,
+    tasks,
+    commands,
 } from "vscode";
 
 import * as cvg from './coverage/coverage';
@@ -20,8 +22,6 @@ import { SimpleCoverageParser } from './coverage/simple';
 import { SimpleDiagnosticParser } from './diag/simple';
 import { memoryUsage } from "process";
 import { urlToHttpOptions } from "url";
-import { match } from "assert";
-
 
 export class Scope {
     name: string;
@@ -231,6 +231,44 @@ export class Service {
 
     }
 
+
+    /**
+     * Run user defined task to update Coverae files
+     * then process updated coverage data
+     */
+    public async updateCoverageData() {
+
+        const taskName = this.config.updateCoverageTaskName;
+        tasks.fetchTasks().then((tasks) => {
+            this.outputChannel.info("Finding task '" + taskName + "'");
+            return tasks.filter(task => task.name === taskName);
+        }).then((matches) => {
+            if (matches.length === 0) {
+                this.outputChannel.info("No task found: '" + taskName + "'");
+                return Promise.reject();
+            }
+            matches.forEach((t) => {
+                this.outputChannel.info("task: " + t);
+            });
+            this.outputChannel.info("Executing task '" + taskName + "': " + matches);
+            return tasks.executeTask(matches[0]);
+        }).then((exec) => {
+
+            this.outputChannel.info("Waiting for task '" + taskName + "'");
+            return new Promise<void>(resolve => {
+                let listener = tasks.onDidEndTask(e => {
+                    if (e.execution === exec) {
+                        this.outputChannel.info("Finished task '" + taskName + "'")
+                        listener.dispose(); // unregister this callback
+                        resolve();
+                    }
+                })
+            })
+        }).then(() => {
+            this.outputChannel.info("Update coverage data");
+            this.processCoverageData();
+        })
+    }
 
     /**
      * process coverage information and update rednered

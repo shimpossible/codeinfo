@@ -3,6 +3,12 @@ import { Scope, Service } from '../service';
 import * as cvg from './coverage';
 import { setUncaughtExceptionCaptureCallback } from 'process';
 
+/**
+ * Creates "codelens" annotations on the source file.
+ * These will be clickable dropdowns above functions that let you filter
+ * the coverage.  This only shows up when more than one 'scope' is on the same
+ * range of lines.  Which typically happens on Templates
+ */
 export class CodeLensProvider implements vscode.CodeLensProvider {
 
     private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
@@ -36,7 +42,7 @@ export class CodeLensProvider implements vscode.CodeLensProvider {
             lines.set(scope.line, count+1);
         });
 
-        
+
         scopes.forEach( (scope) => {
 
             // ignore single scopes
@@ -54,14 +60,14 @@ export class CodeLensProvider implements vscode.CodeLensProvider {
         });
 
         return codelens;
-        
+
     };
 
     /**
      * This is used to set "command" on a codelens, as that is expected to take some time.
-     * @param codeLens 
-     * @param token 
-     * @returns 
+     * @param codeLens
+     * @param token
+     * @returns
      */
     public resolveCodeLens?(codeLens: vscode.CodeLens, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens> {
         this.output.info("Resolve code lens");

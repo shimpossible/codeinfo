@@ -5,6 +5,7 @@ import {
     resolveUri
 } from '../config';
 import { SimpleCoverageParser } from './simple';
+import { assert } from 'console';
 
 export interface ICoverageParser {
     /**
@@ -38,7 +39,7 @@ export enum StatementCoverageKind {
  */
 export class StatementCoverage {
 
-    /** 
+    /**
      * Times line was executed
      */
     executed: number;
@@ -54,7 +55,10 @@ export class StatementCoverage {
     scope: string | undefined;
 
     /**
-     * Branch coverage for line
+     * Branch coverage for line.  Order of this array is important
+     * It is assumed multiple executions will report the branches in the same order.
+     * This allows the code to know if/when all branches were covered across all
+     * executions
      */
     branches: BranchCoverage[] | undefined;
 
@@ -68,7 +72,7 @@ export class StatementCoverage {
      * @param executed The number of times this statement was executed,
      *  If zero, the statement will be marked as un-covered.
      * @param branches Coverage from branches of this line.  If it's not a
-     * conditional, this should be omitted.
+     * conditional, this can be omitted.
      */
     constructor(opt: {
         executed: number,
@@ -82,14 +86,20 @@ export class StatementCoverage {
         this.branches = opt.branches;
         this.scope = opt.scope;
 
+        // does this line have branches?
         if (opt.branches?.length) {
             // branches on this line, so must execute all of them to get FULL
+
+            // find lowest executed count of the branches.
+            // if >0 then we have full coverage, as every branch
+            // was hit at least once
             const min_executed = opt.branches?.reduce((last, b) => {
                 return last.executed < b.executed
                     ? last
                     : b;
             }).executed;
 
+            // sum of all execution.  if 0, then nothing was executed
             const num_executed = opt.branches?.reduce((sum, b) => {
                 return sum + b.executed;
             }, 0);
@@ -139,7 +149,8 @@ export interface SortedFileCoverage {
 }
 
 /**
- * Covert a FileCoverage into groups of full, partial and none lines
+ * Covert a FileCoverage into groups of full, partial and none lines, to make
+ * coloring easier
  * @param coverage FileCoverage
  */
 export function sortCoverage(coverage: FileCoverage): SortedFileCoverage {
@@ -165,11 +176,13 @@ export function sortCoverage(coverage: FileCoverage): SortedFileCoverage {
     return ret;
 }
 
-
+/**
+ * A named section of code.  Typicall a function
+ */
 export class Scope {
-    name: string;
-    line: number;
-    uri: vscode.Uri;
+    name: string;     // function name
+    line: number;     // line number of start of function
+    uri: vscode.Uri;  // file for the scope
 
     constructor(obj: { name: string, line: number, uri: vscode.Uri }) {
         this.name = obj.name;
@@ -186,7 +199,10 @@ export class Scope {
 };
 
 /**
- * Merge two coverage lists
+ * Merge two coverage lists.  This is needed when there are multiple executions of the same source
+ * Can happen due to multiple executables, or from header files being used in multiple compile units
+ * such as with templates
+ *
  * @param oldCoverage  Existing coverage
  * @param newCoverage  new coverage
  * @param matcher      how to match two FileCoverage objects
@@ -205,13 +221,21 @@ async function mergeCoverageData(
     if (oldCoverage) {
         // condence by line number
         await Promise.all(oldCoverage.coverage.map(async (cov: StatementCoverage) => {
+
+            // use line number for key
             const key = cov.location;
+
+            // is there a match at this line number?
             const existing = coverage.get(key);
             if (existing) {
+
+                assert(existing.branches?.length == cov.branches?.length, "both should have the same branch count" )
+
                 coverage.set(key, new StatementCoverage({
-                    executed: existing.executed + cov.executed, // merge the exec count
+                    executed: existing.executed + cov.executed, // sum the exec count
                     location: existing.location,
-                    // merge the two branch exec counts
+                    // merge the two branch exec counts by summing exec count
+                    // of each branch in order
                     branches: existing.branches?.map((val, idx) => {
                         const exec_count = cov.branches?.[idx]?.executed || 0;
                         return new BranchCoverage(val.executed + exec_count);
@@ -243,6 +267,8 @@ async function mergeCoverageData(
                 return new BranchCoverage(val.executed + exec_count);
             }))
             : [];
+
+        assert(existing.branches?.length == cov.branches?.length, "both should have the same branch count" )
 
         // if existing had less branches than add remaining new branches
         const start = existing.branches?.length || 0;
@@ -323,9 +349,9 @@ export class Coverage {
             this.handleEditorEvents.bind(this),
         );
 
-        this.configWatcher = this.config.onDidChangeConfig( () =>{
+        this.configWatcher = this.config.onDidChangeConfig(() => {
             // read all coverage data again, as something may have
-            // changed 
+            // changed
             this.updateCoverageData();
         });
 
@@ -360,7 +386,7 @@ export class Coverage {
 
         // once updated, render all
         // TODO: find a faster way if this is too slow
-        // this has to read all coverage files again and 
+        // this has to read all coverage files again and
         // merge, as "merge" is the step where scopes are combinded
         await this.updateCoverageData();
     }
@@ -414,11 +440,15 @@ export class Coverage {
     private async reduceCoverageFile(uri: vscode.Uri, allCoverage: Map<string, FileCoverage[]>) {
         let merged: FileCoverage | undefined = undefined;
 
+        // get existing coverage for the file
         const coverage = allCoverage.get(uri.toString()) || [];
         const scopeAtLine = new Map<string, number>();
+
+        // for all known coverage in the file.  A given file can have
+        // multitple 'FileCoverage' objects associated with it
         await Promise.all(coverage.map(async (cov: FileCoverage) => {
 
-            // reduce scopes
+            // track all scopes by line number
             cov.coverage.forEach((st) => {
                 if (!st.scope) { return; }
                 // store the lowest line number of a given scope
@@ -426,6 +456,7 @@ export class Coverage {
                 scopeAtLine.set(st.scope, Math.min(line, st.location));
             });
 
+            // merge the previous FileCoverage with the current one
             merged = await mergeCoverageData(
                 merged,
                 cov,
@@ -440,7 +471,7 @@ export class Coverage {
                 this.logger);
         }));
 
-        // had coverage data
+        // had coverage data ?
         if (merged) {
             this.coverageData.set(uri.toString(), merged);
         }

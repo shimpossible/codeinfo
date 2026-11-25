@@ -15,11 +15,17 @@ export function activate(context: vscode.ExtensionContext) {
 	const outputChannel = vscode.window.createOutputChannel("CodeInfo", { log: true });
 	const config = new Config(context, outputChannel);
 	const service = new coverage.Service(config, outputChannel);
-
+ 
 	const displayCoverage = vscode.commands.registerCommand(
 		"codeinfo.displayCoverage",
 		service.processCoverageData.bind(service),
 	);
+
+	const updateCoverage = vscode.commands.registerCommand(
+		"codeinfo.updateCoverage",
+		service.updateCoverageData.bind(service),
+	);
+
 	const displayDiagnostics = vscode.commands.registerCommand(
 		"codeinfo.displayDiagnostic",
 		service.processDiagnosicData.bind(service),
@@ -31,6 +37,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(displayCoverage);
+	context.subscriptions.push(updateCoverage);
 	context.subscriptions.push(displayDiagnostics);
 	context.subscriptions.push(disableScope);
 	context.subscriptions.push(outputChannel);

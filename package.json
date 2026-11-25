@@ -3,7 +3,7 @@
   "publisher": "shimpossible",
   "displayName": "Code Info",
   "description": "Display Coverage and Diagnostic information for code",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -21,6 +21,10 @@
         "title": "CodeInfo: Update Coverage Data"
       },
       {
+        "command": "codeinfo.updateCoverage",
+        "title": "CodeInfo: Execute Coverage Data task"
+      },
+      {
         "command": "codeinfo.displayDiagnostic",
         "title": "CodeInfo: Update Problem Data"
       },
@@ -33,6 +37,11 @@
       {
         "title": "CodeInfo",
         "properties": {
+          "codeinfo.coverage.updateTask":{
+            "type":"string",
+            "default":"Update Code Coverage",
+            "description": "Task to run to update Code Coverages"
+          },
           "codeinfo.coverage.enable":{
              "type":"boolean",
              "default": "true",
@@ -41,37 +50,37 @@
           "codeinfo.coverage.fullDark": {
             "type": "string",
             "scope": "resource",
-            "default": "rgba(0, 255, 0, 0.4)",
+            "default": "rgba(46,160,67,0.15)",
             "description": "dark themed highlight for full code coverage"
           },
           "codeinfo.coverage.fullLight": {
             "type": "string",
             "scope": "resource",
-            "default": "rgba(0, 255, 0, 0.4)",
+            "default": "rgba(46,160,67,0.15)",
             "description": "light themed highlight for full code coverage"
           },
           "codeinfo.coverage.partialDark": {
             "type": "string",
             "scope": "resource",
-            "default": "rgba(163, 149, 0, 0.4)",
+            "default": "rgba(248, 200, 0, 0.20)",
             "description": "dark themed highlight for full code coverage"
           },
           "codeinfo.coverage.partialLight": {
             "type": "string",
             "scope": "resource",
-            "default": "rgba(255, 235, 0, 0.2)",
+            "default": "rgba(248, 200, 0, 0.20)",
             "description": "light themed highlight for full code coverage"
           },
           "codeinfo.coverage.noneDark": {
             "type": "string",
             "scope": "resource",
-            "default": "rgba(163, 0, 0, 0.4)",
+            "default": "rgba(248, 81,73,0.15)",
             "description": "dark themed highlight for full code coverage"
           },
           "codeinfo.coverage.noneLight": {
             "type": "string",
             "scope": "resource",
-            "default": "rgba(255, 0, 0, 0.2)",
+            "default": "rgba(248, 81,73,0.15)",
             "description": "light themed highlight for full code coverage"
           },
           "codeinfo.diagnostic.paths": {
